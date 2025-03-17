@@ -52,9 +52,39 @@ public:
     }
 };
 
+class Function {
+    uintptr_t startAddress;
+    uintptr_t endAddress;
+    std::vector<Function&> xrefs;
+    std::vector<Function&> calls;
+    std::vector<std::string_view> strings; // null-terminated
+
+    explicit Function(uintptr_t startAddress, uintptr_t endAddress) : startAddress(startAddress), endAddress(endAddress) {};
+
+    [[nodiscard]] uintptr_t getStartAddress() const {
+        return startAddress;
+    }
+
+    [[nodiscard]] uintptr_t getEndAddress() const {
+        return endAddress;
+    }
+
+    [[nodiscard]] bool belongsToFunction(uintptr_t address) const {
+        return startAddress <= address <= endAddress;
+    }
+
+    void addCall(Function& function) {
+        calls.emplace_back(function);
+    }
+
+    void addXREF(Function& function) {
+        xrefs.emplace_back(function);
+    }
+};
+
 class Minecraft {
-private:
     std::vector<std::byte> data;
+    std::map<uintptr_t, Function> functions;
     std::string version;
     std::filesystem::path path;
 public:
@@ -75,9 +105,11 @@ public:
         return address - reinterpret_cast<uintptr_t>(data.data());
     }
 
+
+
     int getCount(const hat::signature_view& signature) {
         // 48 8D 05 ? ? ? ? vtables, vtable functions inside
-        // E9 ? ? ? ? | E8 ? ? ? ? functions
+        // E9 ? ? ? ? | E8 ? ? ? ? functions, before func start CC byte
         const auto module = hat::process::module_at(data.data());
         const auto textData = module.value().get_section_data(".text");
         std::vector<hat::scan_result> result = find_all_pattern(textData.begin(), textData.end(), signature, hat::scan_alignment::X1, hat::scan_hint::x86_64);

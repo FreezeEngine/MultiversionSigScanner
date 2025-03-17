@@ -53,14 +53,8 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(libhat)
-FetchContent_GetProperties(json)
 FetchContent_MakeAvailable(fmt)
-
-if(NOT json_POPULATED)
-    FetchContent_Populate(json)
-    add_library(nlohmann_json INTERFACE)
-    target_include_directories(nlohmann_json INTERFACE ${json_SOURCE_DIR}/include)
-endif()
+FetchContent_MakeAvailable(json)
 
 add_executable(MultiversionSigScanner main.cpp)
 target_link_libraries(MultiversionSigScanner PRIVATE fmt::fmt libhat nlohmann_json Version.lib)
