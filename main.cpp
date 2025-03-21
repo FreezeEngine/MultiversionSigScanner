@@ -55,9 +55,9 @@ public:
 class Function {
     uintptr_t startAddress;
     uintptr_t endAddress;
-    std::vector<Function&> xrefs;
-    std::vector<Function&> calls;
-    std::vector<std::string_view> strings; // null-terminated
+    std::vector<Function*> xrefs;
+    std::vector<Function*> calls;
+    std::vector<std::string_view> stringRefs; // null-terminated
 
     explicit Function(uintptr_t startAddress, uintptr_t endAddress) : startAddress(startAddress), endAddress(endAddress) {};
 
@@ -70,15 +70,15 @@ class Function {
     }
 
     [[nodiscard]] bool belongsToFunction(uintptr_t address) const {
-        return startAddress <= address <= endAddress;
+        return startAddress <= address && address <= endAddress;
     }
 
     void addCall(Function& function) {
-        calls.emplace_back(function);
+        calls.emplace_back(&function);
     }
 
     void addXREF(Function& function) {
-        xrefs.emplace_back(function);
+        xrefs.emplace_back(&function);
     }
 };
 
@@ -105,16 +105,23 @@ public:
         return address - reinterpret_cast<uintptr_t>(data.data());
     }
 
+    std::vector<hat::scan_result> getAllResults(std::string_view signature) {
+        const auto parsed = hat::parse_signature(signature);
+        return getAllResults(parsed.value());
+    }
 
-
-    int getCount(const hat::signature_view& signature) {
+    std::vector<hat::scan_result> getAllResults(const hat::signature_view& signature) {
         // 48 8D 05 ? ? ? ? vtables, vtable functions inside
         // E9 ? ? ? ? | E8 ? ? ? ? functions, before func start CC byte
         const auto module = hat::process::module_at(data.data());
         const auto textData = module.value().get_section_data(".text");
-        std::vector<hat::scan_result> result = find_all_pattern(textData.begin(), textData.end(), signature, hat::scan_alignment::X1, hat::scan_hint::x86_64);
 
-        return (int)result.size();
+        return find_all_pattern(textData.begin(), textData.end(), signature, hat::scan_alignment::X1, hat::scan_hint::x86_64);
+    }
+
+    uintptr_t findSig(std::string_view signature) {
+        const auto parsed = hat::parse_signature(signature);
+        return findSig(parsed.value());
     }
 
     uintptr_t findSig(const hat::signature_view& signature) {
@@ -125,16 +132,6 @@ public:
             return getOffset(reinterpret_cast<uintptr_t>(result.get()));
         }
         return 0;
-    }
-
-    int getCount(std::string_view signature) {
-        const auto parsed = hat::parse_signature(signature);
-        return getCount(parsed.value());
-    }
-
-    uintptr_t findSig(std::string_view signature) {
-        const auto parsed = hat::parse_signature(signature);
-        return findSig(parsed.value());
     }
 
     void loadData(const std::filesystem::path& executablePath) {
@@ -238,12 +235,10 @@ int main() {
 
         if (sig.empty()) continue;
 
-        for (auto&& [version, mc] : mcVersions) { //std::cout << "Version: " << version << " | Minecraft.Windows.exe+0x" << std::hex << std::uppercase << res << std::dec << std::endl;
+        for (auto&& [version, mc] : mcVersions) {
             auto res = mc.findSig(sig);
-            auto count = mc.getCount(sig);
             if (res != 0)
-                fmt::print("Version: {} | Minecraft.Windows.exe+0x{:x} | Count: {}\n", version.c_str(), res, count);
-
+                fmt::print("Version: {} | Minecraft.Windows.exe+0x{:x}\n", version.c_str(), res);
         }
 
         std::cout << std::flush;
