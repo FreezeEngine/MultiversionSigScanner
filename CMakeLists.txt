@@ -23,14 +23,14 @@ add_compile_options($<$<CONFIG:Release>:/Gw>)
 # Enable string pooling to reduce binary size by consolidating duplicate strings
 add_compile_options($<$<CONFIG:Release>:/GF>)
 
-# Optimize floating point operations for speed (may introduce minor precision differences)
+# Optimize floating point operations
 add_compile_options($<$<CONFIG:Release>:/fp:fast>)
 
-# Disable RTTI (Run-Time Type Information) to reduce binary size and possibly improve performance
+# Disable RTTI (Run-Time Type Information)
 add_compile_options($<$<CONFIG:Release>:/GR->)
 
 # Inline any suitable function to improve performance by reducing function call overhead
-add_compile_options($<$<CONFIG:Release>:/Ob2>)
+#add_compile_options($<$<CONFIG:Release>:/Ob2>)
 
 add_compile_definitions(_AMD64_)
 

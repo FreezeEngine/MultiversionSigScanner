@@ -52,39 +52,9 @@ public:
     }
 };
 
-class Function {
-    uintptr_t startAddress;
-    uintptr_t endAddress;
-    std::vector<Function*> xrefs;
-    std::vector<Function*> calls;
-    std::vector<std::string_view> stringRefs; // null-terminated
-
-    explicit Function(uintptr_t startAddress, uintptr_t endAddress) : startAddress(startAddress), endAddress(endAddress) {};
-
-    [[nodiscard]] uintptr_t getStartAddress() const {
-        return startAddress;
-    }
-
-    [[nodiscard]] uintptr_t getEndAddress() const {
-        return endAddress;
-    }
-
-    [[nodiscard]] bool belongsToFunction(uintptr_t address) const {
-        return startAddress <= address && address <= endAddress;
-    }
-
-    void addCall(Function& function) {
-        calls.emplace_back(&function);
-    }
-
-    void addXREF(Function& function) {
-        xrefs.emplace_back(&function);
-    }
-};
 
 class Minecraft {
     std::vector<std::byte> data;
-    std::map<uintptr_t, Function> functions;
     std::string version;
     std::filesystem::path path;
 public:
@@ -111,8 +81,6 @@ public:
     }
 
     std::vector<hat::scan_result> getAllResults(const hat::signature_view& signature) {
-        // 48 8D 05 ? ? ? ? vtables, vtable functions inside
-        // E9 ? ? ? ? | E8 ? ? ? ? functions, before func start CC byte
         const auto module = hat::process::module_at(data.data());
         const auto textData = module.value().get_section_data(".text");
 
@@ -176,35 +144,19 @@ public:
 };
 
 int main() {
-    std::filesystem::path basePath = "L:\\MCBedrock\\Versions";
+
+    std::cout << "Path to mc installations: ";
+    std::string path;
+    std::getline(std::cin, path);
+
+    std::filesystem::path basePath(path);
     if (!std::filesystem::exists(basePath) || !std::filesystem::is_directory(basePath)) {
         fmt::print("Directory does not exist: {}\n", basePath.string());
         return 1;
     }
 
-
     std::map<std::string, Minecraft> mcVersions;
     std::vector<std::filesystem::path> files;
-
-//    struct Version {
-//        int major;
-//        int minor;
-//        int patch;
-//        int build;
-//    };
-//
-//    auto parseVersion = [](const std::string& version) -> Version {
-//        std::istringstream iss(version);
-//        int major = 0, minor = 0, patch = 0, build = 0;
-//        char dot;
-//
-//        iss >> major >> dot >> minor >> dot >> patch >> dot >> build;
-//        return {major, minor, patch, build};
-//    };
-//
-//    auto getVersionKey = [](const std::tuple<int, int, int, int>& version) {
-//        return std::make_tuple(std::get<0>(version), std::get<1>(version), std::get<2>(version)); // Excludes last number
-//    };
 
     for (const auto& entry : std::filesystem::directory_iterator(basePath)) {
         auto path = entry.path() / L"Minecraft.Windows.exe";
@@ -220,9 +172,11 @@ int main() {
                 continue;
             }
 
-            fmt::print("Path: {} | Version: {}\n", path.string(), version.c_str());
+            fmt::print("Found at: {} | Version: {}\n", path.string(), version.c_str());
         }
     }
+
+    fmt::println("Mapping to memory...");
 
     for (auto&& [version, mc] : mcVersions) {
         mc.loadData();
@@ -237,8 +191,9 @@ int main() {
 
         for (auto&& [version, mc] : mcVersions) {
             auto res = mc.findSig(sig);
+            auto count = mc.getAllResults(sig).size();
             if (res != 0)
-                fmt::print("Version: {} | Minecraft.Windows.exe+0x{:x}\n", version.c_str(), res);
+                fmt::print("Version: {} | Minecraft.Windows.exe+0x{:X} | Count: {}\n", version.c_str(), res, count);
         }
 
         std::cout << std::flush;
